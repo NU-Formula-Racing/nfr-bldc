@@ -107,7 +107,7 @@
 #define V_REG					3.3
 #endif
 #ifndef VIN_R1
-#define VIN_R1					195.4583
+#define VIN_R1					187.1227
 #endif
 #ifndef VIN_R2
 #define VIN_R2					1
@@ -118,10 +118,10 @@
 // #endif
 // // Gain for voltage across shunt
 #ifndef CURRENT_AMP_GAIN
-#define CURRENT_AMP_GAIN		45.1
+#define CURRENT_AMP_GAIN		-0.0025625
 #endif
 #ifndef CURRENT_SHUNT_RES
-#define CURRENT_SHUNT_RES		0.0005
+#define CURRENT_SHUNT_RES		1
 #endif
 
 // Input voltage 
@@ -129,7 +129,7 @@
 
 // NTC Thermistors
 // #define NTC_RES(adc_val)		((4095.0 * 10000.0) / adc_val - 10000.0)
-#define NTC_RES(adc_val)		(-110000.0 * (3.3 * adc_val / 4095.0)) / ((3.3 * adc_val / 4095.0) - 15.0)
+#define NTC_RES(adc_val)		(-33000.0 * (3.3 * adc_val / 4095.0)) / ((3.3 * adc_val / 4095.0) - 5)
 // #define NTC_TEMP(adc_ind)		(1.0 / ((logf(NTC_RES(ADC_Value[adc_ind]) / 10000.0) / 3380.0) + (1.0 / 298.15)) - 273.15)
 #define NTC_TEMP(adc_ind)		(1.0 / ((logf(NTC_RES(ADC_Value[adc_ind]) / 5000.0) / 3375.0) + (1.0 / 298.15)) - 273.15)
 
@@ -269,7 +269,7 @@
 #define READ_HALL3()			palReadPad(HW_HALL_ENC_GPIO3, HW_HALL_ENC_PIN3)
 
 // Override dead time. See the stm32f4 reference manual for calculating this value.
-#define HW_DEAD_TIME_NSEC					800.0
+#define HW_DEAD_TIME_NSEC					5000.0
 
 // Default setting overrides
 #ifndef MCCONF_DEFAULT_MOTOR_TYPE
@@ -279,7 +279,7 @@
 #define MCCONF_FOC_F_ZV					30000.0
 #endif
 #ifndef MCCONF_L_MAX_ABS_CURRENT
-#define MCCONF_L_MAX_ABS_CURRENT		150.0	// The maximum absolute current above which a fault is generated
+#define MCCONF_L_MAX_ABS_CURRENT		300.0	// The maximum absolute current above which a fault is generated
 #endif
 #ifndef MCCONF_FOC_SAMPLE_V0_V7
 #define MCCONF_FOC_SAMPLE_V0_V7			false	// Run control loop in both v0 and v7 (requires phase shunts) - check if this should actually be true
@@ -290,7 +290,7 @@
 #define HW_LIM_CURRENT_IN		-120.0, 120.0
 #define HW_LIM_CURRENT_ABS		0.0, 160.0
 // default lim_vin is 6, 57
-#define HW_LIM_VIN				20.0, 700.0
+#define HW_LIM_VIN				6.0, 700.0
 #define HW_LIM_ERPM				-200e3, 200e3
 #define HW_LIM_DUTY_MIN			0.0, 0.1
 #define HW_LIM_DUTY_MAX			0.0, 0.99
