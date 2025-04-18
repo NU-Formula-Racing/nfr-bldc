@@ -118,7 +118,7 @@
 // #endif
 // // Gain for voltage across shunt
 #ifndef CURRENT_AMP_GAIN
-#define CURRENT_AMP_GAIN		-0.0025625
+#define CURRENT_AMP_GAIN		0.003817 // Calculated 0.0041667
 #endif
 #ifndef CURRENT_SHUNT_RES
 #define CURRENT_SHUNT_RES		1
@@ -269,7 +269,7 @@
 #define READ_HALL3()			palReadPad(HW_HALL_ENC_GPIO3, HW_HALL_ENC_PIN3)
 
 // Override dead time. See the stm32f4 reference manual for calculating this value.
-#define HW_DEAD_TIME_NSEC					5000.0
+#define HW_DEAD_TIME_NSEC					1000.0
 
 // Default setting overrides
 #ifndef MCCONF_DEFAULT_MOTOR_TYPE
@@ -279,22 +279,22 @@
 #define MCCONF_FOC_F_ZV					30000.0
 #endif
 #ifndef MCCONF_L_MAX_ABS_CURRENT
-#define MCCONF_L_MAX_ABS_CURRENT		300.0	// The maximum absolute current above which a fault is generated
+#define MCCONF_L_MAX_ABS_CURRENT		400.0	// The maximum absolute current above which a fault is generated
 #endif
 #ifndef MCCONF_FOC_SAMPLE_V0_V7
-#define MCCONF_FOC_SAMPLE_V0_V7			false	// Run control loop in both v0 and v7 (requires phase shunts) - check if this should actually be true
+#define MCCONF_FOC_SAMPLE_V0_V7			true	// Run control loop in both v0 and v7 (requires phase shunts) - check if this should actually be true
 #endif
 
 // Setting limits
-#define HW_LIM_CURRENT			-120.0, 120.0
-#define HW_LIM_CURRENT_IN		-120.0, 120.0
-#define HW_LIM_CURRENT_ABS		0.0, 160.0
+#define HW_LIM_CURRENT			-400.0, 400.0
+#define HW_LIM_CURRENT_IN		-400.0, 400.0
+#define HW_LIM_CURRENT_ABS		0.0, 400.0
 // default lim_vin is 6, 57
-#define HW_LIM_VIN				6.0, 700.0
+#define HW_LIM_VIN				6.0, 750.0
 #define HW_LIM_ERPM				-200e3, 200e3
 #define HW_LIM_DUTY_MIN			0.0, 0.1
 #define HW_LIM_DUTY_MAX			0.0, 0.99
-#define HW_LIM_TEMP_FET			-40.0, 110.0
+#define HW_LIM_TEMP_FET			-40.0, 140.0
 
 
 #endif /*HW_NFR_H_*/

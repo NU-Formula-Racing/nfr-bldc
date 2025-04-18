@@ -16,6 +16,7 @@ static volatile bool i2c_running = false;
 static mutex_t shutdown_mutex;
 // static float bt_diff = 0.0;
 
+
 // I2C configuration
 static const I2CConfig i2cfg = {
 		OPMODE_I2C,
