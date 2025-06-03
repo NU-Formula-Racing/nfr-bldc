@@ -826,12 +826,29 @@ void mcpwm_foc_release_motor(void) {
  * The current to use. Positive and negative values give the same effect.
  */
 void mcpwm_foc_set_brake_current(float current) {
-	get_motor_now()->m_control_mode = CONTROL_MODE_CURRENT_BRAKE;
-	get_motor_now()->m_iq_set = current;
+	
+	#ifdef HW_LIM_MIN_REGEN_ERPM
+		// If motor is spinning slower than minimum ERPM for braking, switch
+		// to forward current control with zero current
+		if(fabsf(get_motor_now()->m_speed_est_fast) < HW_LIM_MIN_REGEN_ERPM) {
+			get_motor_now()->m_control_mode = CONTROL_MODE_CURRENT;
+			get_motor_now()->m_iq_set = 0.0;
+			return;
+		}
+		get_motor_now()->m_control_mode = CONTROL_MODE_CURRENT_BRAKE;
+		get_motor_now()->m_iq_set = current;
+	#endif
+	#ifndef HW_LIM_MIN_REGEN_ERPM
+		get_motor_now()->m_control_mode = CONTROL_MODE_CURRENT_BRAKE;
+		get_motor_now()->m_iq_set = current;
+	#endif
+
+	
 
 	if (fabsf(current) < get_motor_now()->m_conf->cc_min_current) {
 		return;
 	}
+
 
 	if (get_motor_now()->m_state != MC_STATE_RUNNING) {
 		get_motor_now()->m_motor_released = false;
