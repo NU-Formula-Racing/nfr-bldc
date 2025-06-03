@@ -303,5 +303,7 @@
 #define HW_LIM_DUTY_MAX			0.0, 0.99
 #define HW_LIM_TEMP_FET			-40.0, 140.0
 
+#define HW_LIM_MIN_REGEN_ERPM 	2000
+
 
 #endif /*HW_NFR_H_*/
