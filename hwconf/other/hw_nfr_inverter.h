@@ -269,7 +269,7 @@
 #define READ_HALL3()			palReadPad(HW_HALL_ENC_GPIO3, HW_HALL_ENC_PIN3)
 
 // Override dead time. See the stm32f4 reference manual for calculating this value.
-#define HW_DEAD_TIME_NSEC					1200.0
+#define HW_DEAD_TIME_NSEC					1800.0
 
 // Default setting overrides
 #ifndef MCCONF_DEFAULT_MOTOR_TYPE
