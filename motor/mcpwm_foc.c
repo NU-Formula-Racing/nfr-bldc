@@ -830,7 +830,7 @@ void mcpwm_foc_set_brake_current(float current) {
 	#ifdef HW_LIM_MIN_REGEN_ERPM
 		// If motor is spinning slower than minimum ERPM for braking, switch
 		// to forward current control with zero current
-		if(fabsf(get_motor_now()->m_speed_est_fast) < HW_LIM_MIN_REGEN_ERPM) {
+		if(fabsf(mcpwm_foc_get_rpm()) < HW_LIM_MIN_REGEN_ERPM) {
 			get_motor_now()->m_control_mode = CONTROL_MODE_CURRENT;
 			get_motor_now()->m_iq_set = 0.0;
 			return;
