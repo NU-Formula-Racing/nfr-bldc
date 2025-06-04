@@ -835,14 +835,9 @@ void mcpwm_foc_set_brake_current(float current) {
 			get_motor_now()->m_iq_set = 0.0;
 			return;
 		}
+	#endif
 		get_motor_now()->m_control_mode = CONTROL_MODE_CURRENT_BRAKE;
 		get_motor_now()->m_iq_set = current;
-	#endif
-	#ifndef HW_LIM_MIN_REGEN_ERPM
-		get_motor_now()->m_control_mode = CONTROL_MODE_CURRENT_BRAKE;
-		get_motor_now()->m_iq_set = current;
-	#endif
-
 	
 
 	if (fabsf(current) < get_motor_now()->m_conf->cc_min_current) {
