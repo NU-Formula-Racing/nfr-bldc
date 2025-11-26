@@ -1859,6 +1859,12 @@ void mc_interface_mc_timer_isr(bool is_second_motor) {
 
 	// Check for faults that should stop the motor
 
+#ifdef REGEN_FAULT_VOLTAGE
+	if (input_voltage > REGEN_FAULT_VOLTAGE) {
+		mcpwm_short_phases();
+	}
+#endif
+
 	static float wrong_voltage_integrator = 0.0;
 	float voltage_diff_now = 0.0;
 

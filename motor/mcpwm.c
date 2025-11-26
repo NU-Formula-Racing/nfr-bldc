@@ -651,6 +651,14 @@ void mcpwm_release_motor(void) {
 	stop_pwm_ll();
 }
 
+
+/**
+ * Short the phases of motor to preven uncontrolled regen.
+ */
+void mcpwm_short_phases(void) {
+	full_brake_ll();
+}
+
 /**
  * Brake the motor with a desired current. Absolute values less than
  * conf->cc_min_current will release the motor.
