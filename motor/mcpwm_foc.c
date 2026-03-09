@@ -739,6 +739,17 @@ void mcpwm_foc_set_duty_noramp(float dutyCycle) {
 }
 
 /**
+ * Set PWM duty cycle to zero to short phases together
+ */
+void mcpwm_foc_short_phases(bool is_second_motor) {
+	motor_all_state_t *motor = (motor_all_state_t*)M_MOTOR(is_second_motor);
+
+	motor->m_control_mode = CONTROL_MODE_NONE;
+	motor->m_state = MC_STATE_OFF;
+	full_brake_hw(motor);
+}
+
+/**
  * Use PID rpm control. Note that this value has to be multiplied by half of
  * the number of motor poles.
  *

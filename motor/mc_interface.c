@@ -2979,6 +2979,12 @@ static THD_FUNCTION(fault_stop_thread, arg) {
 			break;
 
 		case MOTOR_TYPE_FOC:
+#ifdef HW_HAS_ISOLATION_RELAYS
+			if(fault_data_copy.fault_code == FAULT_CODE_OVER_VOLTAGE) {
+				mcpwm_foc_short_phases(fault_data_copy.is_second_motor);
+				break;
+			}
+#endif
 			mcpwm_foc_stop_pwm(fault_data_copy.is_second_motor);
 			break;
 
