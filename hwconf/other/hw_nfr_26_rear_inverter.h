@@ -130,7 +130,7 @@
 #define GET_INPUT_VOLTAGE()		((V_REG / 4095.0) * (float)ADC_Value[ADC_IND_VIN_SENS] * ((VIN_R1 + VIN_R2) / VIN_R2))
 
 // NTC Thermistors
-#define v_adc(adc_val)			(3.3 * adc_val / 4095.0);
+#define v_adc(adc_val)			(3.3 * adc_val / 4095.0)
 // #define NTC_RES(adc_val)		((4095.0 * 10000.0) / adc_val - 10000.0)
 // #define NTC_RES(adc_val)		(-33000.0 * (3.3 * adc_val / 4095.0)) / ((3.3 * adc_val / 4095.0) - 5)
 #define NTC_RES(adc_val)		(5*(3.3-v_adc(adc_val))) / ((3.3 * 5 / 1000) + 0.00002 - (5/1000)*(3.3-v_adc(adc_val))) //NFR26 Rear
