@@ -120,7 +120,7 @@
 // #endif
 // // Gain for voltage across shunt
 #ifndef CURRENT_AMP_GAIN
-#define CURRENT_AMP_GAIN		0.00341666666
+#define CURRENT_AMP_GAIN		0.02733333333
 #endif
 #ifndef CURRENT_SHUNT_RES
 #define CURRENT_SHUNT_RES		1
