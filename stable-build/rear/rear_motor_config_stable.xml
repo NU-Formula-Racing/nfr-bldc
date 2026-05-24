@@ -11,12 +11,12 @@
     <l_in_current_map_start>1</l_in_current_map_start>
     <l_in_current_map_filter>0.005</l_in_current_map_filter>
     <l_abs_current_max>150</l_abs_current_max>
-    <l_min_erpm>-100000</l_min_erpm>
-    <l_max_erpm>100000</l_max_erpm>
+    <l_min_erpm>-10000</l_min_erpm>
+    <l_max_erpm>10000</l_max_erpm>
     <l_erpm_start>0.8</l_erpm_start>
     <l_max_erpm_fbrake>300</l_max_erpm_fbrake>
     <l_max_erpm_fbrake_cc>1500</l_max_erpm_fbrake_cc>
-    <l_min_vin>20</l_min_vin>
+    <l_min_vin>6</l_min_vin>
     <l_max_vin>600</l_max_vin>
     <l_battery_cut_start>10</l_battery_cut_start>
     <l_battery_cut_end>8</l_battery_cut_end>
@@ -51,21 +51,21 @@
     <hall_table__6>4</hall_table__6>
     <hall_table__7>-1</hall_table__7>
     <hall_sl_erpm>2000</hall_sl_erpm>
-    <foc_current_kp>0.4533</foc_current_kp>
-    <foc_current_ki>254.3</foc_current_ki>
+    <foc_current_kp>0.1354</foc_current_kp>
+    <foc_current_ki>69.22</foc_current_ki>
     <foc_f_zv>20000</foc_f_zv>
     <foc_dt_us>0.1</foc_dt_us>
     <foc_encoder_inverted>0</foc_encoder_inverted>
-    <foc_encoder_offset>32.9</foc_encoder_offset>
-    <foc_encoder_ratio>7</foc_encoder_ratio>
+    <foc_encoder_offset>326.9</foc_encoder_offset>
+    <foc_encoder_ratio>2</foc_encoder_ratio>
     <foc_sensor_mode>1</foc_sensor_mode>
     <foc_pll_kp>2000</foc_pll_kp>
     <foc_pll_ki>30000</foc_pll_ki>
-    <foc_motor_l>0.00022667</foc_motor_l>
-    <foc_motor_ld_lq_diff>0.00011337</foc_motor_ld_lq_diff>
-    <foc_motor_r>0.1272</foc_motor_r>
-    <foc_motor_flux_linkage>0.022464</foc_motor_flux_linkage>
-    <foc_observer_gain>1.98e+06</foc_observer_gain>
+    <foc_motor_l>6.768e-05</foc_motor_l>
+    <foc_motor_ld_lq_diff>8e-06</foc_motor_ld_lq_diff>
+    <foc_motor_r>0.0346</foc_motor_r>
+    <foc_motor_flux_linkage>0.029303</foc_motor_flux_linkage>
+    <foc_observer_gain>1.16e+06</foc_observer_gain>
     <foc_observer_gain_slow>0.05</foc_observer_gain_slow>
     <foc_observer_offset>-1</foc_observer_offset>
     <foc_duty_dowmramp_kp>50</foc_duty_dowmramp_kp>
@@ -92,7 +92,7 @@
     <foc_hall_table__7>255</foc_hall_table__7>
     <foc_hall_interp_erpm>500</foc_hall_interp_erpm>
     <foc_sl_erpm_start>2500</foc_sl_erpm_start>
-    <foc_sl_erpm>3500</foc_sl_erpm>
+    <foc_sl_erpm>1e+06</foc_sl_erpm>
     <foc_control_sample_mode>1</foc_control_sample_mode>
     <foc_current_sample_mode>0</foc_current_sample_mode>
     <foc_sat_comp_mode>2</foc_sat_comp_mode>
@@ -113,15 +113,15 @@
     <foc_hfi_obs_ovr_sec>0.001</foc_hfi_obs_ovr_sec>
     <foc_hfi_samples>2</foc_hfi_samples>
     <foc_offsets_cal_on_boot>0</foc_offsets_cal_on_boot>
-    <foc_offsets_current__0>2048.8</foc_offsets_current__0>
-    <foc_offsets_current__1>2048.19</foc_offsets_current__1>
-    <foc_offsets_current__2>2049.14</foc_offsets_current__2>
-    <foc_offsets_voltage__0>0</foc_offsets_voltage__0>
-    <foc_offsets_voltage__1>0.0003</foc_offsets_voltage__1>
-    <foc_offsets_voltage__2>-0.0004</foc_offsets_voltage__2>
-    <foc_offsets_voltage_undriven__0>0.0054</foc_offsets_voltage_undriven__0>
-    <foc_offsets_voltage_undriven__1>-0.0041</foc_offsets_voltage_undriven__1>
-    <foc_offsets_voltage_undriven__2>-0.0011</foc_offsets_voltage_undriven__2>
+    <foc_offsets_current__0>2052.44</foc_offsets_current__0>
+    <foc_offsets_current__1>2052.19</foc_offsets_current__1>
+    <foc_offsets_current__2>2055.41</foc_offsets_current__2>
+    <foc_offsets_voltage__0>0.0166</foc_offsets_voltage__0>
+    <foc_offsets_voltage__1>-0.0226</foc_offsets_voltage__1>
+    <foc_offsets_voltage__2>0.006</foc_offsets_voltage__2>
+    <foc_offsets_voltage_undriven__0>0.0168</foc_offsets_voltage_undriven__0>
+    <foc_offsets_voltage_undriven__1>-0.023</foc_offsets_voltage_undriven__1>
+    <foc_offsets_voltage_undriven__2>0.0061</foc_offsets_voltage_undriven__2>
     <foc_phase_filter_enable>1</foc_phase_filter_enable>
     <foc_phase_filter_disable_fault>1</foc_phase_filter_disable_fault>
     <foc_phase_filter_max_erpm>4000</foc_phase_filter_max_erpm>
@@ -172,9 +172,9 @@
     <m_dc_f_sw>25000</m_dc_f_sw>
     <m_ntc_motor_beta>3380</m_ntc_motor_beta>
     <m_out_aux_mode>0</m_out_aux_mode>
-    <m_motor_temp_sens_type>0</m_motor_temp_sens_type>
-    <m_ptc_motor_coeff>0.61</m_ptc_motor_coeff>
-    <m_ntcx_ptcx_res>10000</m_ntcx_ptcx_res>
+    <m_motor_temp_sens_type>6</m_motor_temp_sens_type>
+    <m_ptc_motor_coeff>0.79</m_ptc_motor_coeff>
+    <m_ntcx_ptcx_res>2000</m_ntcx_ptcx_res>
     <m_ntcx_ptcx_temp_base>25</m_ntcx_ptcx_temp_base>
     <m_hall_extra_samples>2</m_hall_extra_samples>
     <m_batt_filter_const>45</m_batt_filter_const>

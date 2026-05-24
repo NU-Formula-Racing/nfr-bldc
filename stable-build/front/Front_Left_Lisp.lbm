@@ -1,0 +1,248 @@
+;Messages:
+; Fault Status Fault Code (uint8)
+; Motor Status: RPM (int16), Motor Current * 10 (int16), DC Voltage * 10 (int16), DC Current * 10 (int16)
+; Temp Status: IGBT Temp * 10 (int16), Motor Temp * 10 (int16)
+; Current Draw Status: Ah drawn * 10000 (uint32), Ah charged * 10000 (uint32)
+; Power Draw Status: Wh drawn * 1000 (uint32), Wh charged * 1000 (uint32)
+;
+; Current Command: Motor Current * 1000 (int32)
+; Brake Command: Brake Current * 1000 (int32)
+
+(def current-cmd-addr 0x20D)
+(def brake-cmd-addr 0x20E)
+
+(def fault-status-can-addr 0x285)
+(def motor-status-can-addr 0x286)
+(def temp-status-can-addr 0x287)
+(def current-draw-status-can-addr 0x288)
+(def power-draw-status-can-addr 0x289)
+
+(def fault-status-len 1)
+(def motor-status-len 8)
+(def temp-status-len 4)
+(def current-draw-status-len 8)
+(def power-draw-status-len 8)
+
+(def drive-state-addr 0x206)
+
+(def pole-pairs 10)
+(def min-braking-erpm 4000)
+
+; 0 - not regen
+; 1 - regen
+(define braking-state 0)
+
+; 2 - drive state
+(define drive-state 0)
+
+(define sound-played 0)
+
+(define zero-set 0)
+
+
+
+; Create and send fault status message
+(defun send-fault-status-msg () {
+(define fault-status-arr (array-create fault-status-len))
+
+(bufset-i8 fault-status-arr 0 (get-fault))
+
+(can-send-sid fault-status-can-addr fault-status-arr)
+
+(free fault-status-arr)
+})
+
+; Create and send motor status message
+(defun send-motor-status-msg () {
+(define motor-status-arr (array-create motor-status-len))
+
+(bufset-i16 motor-status-arr 0 (/ (get-rpm) pole-pairs) 'little-endian)
+(bufset-i16 motor-status-arr 2 (* (get-current) 10) 'little-endian)
+(bufset-i16 motor-status-arr 4 (* (get-vin) 10) 'little-endian)
+(bufset-i16 motor-status-arr 6 (* (get-current-in) 10) 'little-endian)
+
+(can-send-sid motor-status-can-addr motor-status-arr)
+
+(free motor-status-arr)
+})
+
+; Create and send temperature status message
+(defun send-temp-status-msg () {
+(define temp-status-arr (array-create temp-status-len))
+
+(bufset-u16 temp-status-arr 0 (* (get-temp-fet) 10) 'little-endian)
+(bufset-u16 temp-status-arr 2 (* (get-temp-mot) 10) 'little-endian)
+
+(can-send-sid temp-status-can-addr temp-status-arr)
+
+(free temp-status-arr)
+})
+
+
+; Create and send current draw status message
+(defun send-current-draw-status-msg () {
+(define current-draw-status-arr (array-create current-draw-status-len))
+
+(bufset-u32 current-draw-status-arr 0 (* (get-ah) 10000) 'little-endian)
+(bufset-u32 current-draw-status-arr 4 (* (get-ah-chg) 10000) 'little-endian)
+
+(can-send-sid current-draw-status-can-addr current-draw-status-arr)
+
+(free current-draw-status-arr)
+})
+
+; Create and send power draw status message
+(defun send-power-draw-status-msg () {
+(define power-draw-status-arr (array-create power-draw-status-len))
+
+(bufset-u32 power-draw-status-arr 0 (* (get-wh) 1000) 'little-endian)
+(bufset-u32 power-draw-status-arr 4 (* (get-wh-chg) 1000) 'little-endian)
+
+(can-send-sid power-draw-status-can-addr power-draw-status-arr)
+
+(free power-draw-status-arr)
+})
+
+
+
+
+
+; Send the higher frequency group of messages
+(defun fast-group () {
+
+(send-motor-status-msg)
+(send-current-draw-status-msg)
+(send-power-draw-status-msg)
+
+})
+
+; Send the slower frequency group of messages
+(defun slow-group () {
+
+(send-fault-status-msg)
+(send-temp-status-msg)
+
+})
+
+
+
+
+
+; Handler for SID CAN-frames
+(defun proc-sid (id data) {
+; Set current command
+(if (= id drive-state-addr) {
+(setq drive-state (bufget-u8 data 0))
+
+(if (and (!= drive-state 3) (= braking-state 1)) {
+(set-current 0.0 1)
+
+(setq braking-state 0)
+})
+})
+
+(if (= drive-state 3) {
+(if (= id current-cmd-addr) {
+
+(if (= braking-state 0) {
+;(print "forward")
+
+(define current-cmd (* 0.001 (bufget-i32 data 0 'little-endian)))
+
+
+(if (or (> current-cmd 0.01) (= zero-set 0)) {
+(set-current current-cmd 1)
+
+(setq zero-set 1)
+})
+
+
+(if (> current-cmd 0.01) {
+(setq zero-set 0)
+})
+
+(timeout-reset)
+})
+
+})
+;(print "middle")
+; Set regen-brake command
+(if (= id brake-cmd-addr) {
+
+;(print "regen")
+
+;(define brake-cmd (* 0.00025 (bufget-i32 data 0 'little-endian)))
+(define brake-cmd (* 0.000 (bufget-i32 data 0 'little-endian)))
+
+(if (!= brake-cmd 0) {
+(set-brake brake-cmd)
+
+(setq zero-set 0)
+
+(timeout-reset)
+
+})
+
+
+(if (and (!= brake-cmd 0) (> (get-rpm) min-braking-erpm)) {
+(setq braking-state 1)
+})
+
+(if (not (and (!= brake-cmd 0) (> (get-rpm) min-braking-erpm))) {
+(setq braking-state 0)
+})
+
+
+})
+})
+
+
+(free data)
+
+})
+
+(defun event-handler ()
+(loopwhile t;
+(recv
+((event-can-sid (? id) . (? data)) (proc-sid id data))
+(_ nil)
+)))
+
+(event-register-handler (spawn event-handler))
+
+(event-enable 'event-can-sid)
+
+
+
+
+
+
+(define counter 0)
+(loopwhile t {
+
+(sleep 0.05)
+
+
+(if (= (mod counter 2) 0) (fast-group))
+(if (= (mod counter 20) 0) (slow-group))
+
+; increment timer counter
+(setq counter (mod (+ counter 1) 1000))
+
+
+(if (and (= drive-state 3) (= sound-played 0)) {
+(setq sound-played 1)
+
+; play startup sound
+(foc-beep 200 0.5 55)
+(foc-beep 300 0.5 55)
+(foc-beep 400 0.5 55)
+})
+
+(if (and (!= drive-state 3) (= sound-played 1)) {
+(setq sound-played 0)
+})
+
+;(print braking-state)
+
+})

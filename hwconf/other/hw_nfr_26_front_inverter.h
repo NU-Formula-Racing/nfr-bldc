@@ -33,10 +33,10 @@
 #define CURRENT_FILTER_ON()		palSetPad(CURRENT_FILTER_GPIO, CURRENT_FILTER_PIN)
 #define CURRENT_FILTER_OFF()	palClearPad(CURRENT_FILTER_GPIO, CURRENT_FILTER_PIN)
 
-#define LED_GREEN_GPIO			GPIOB
-#define LED_GREEN_PIN			0
-#define LED_RED_GPIO			GPIOB
-#define LED_RED_PIN				1
+#define LED_GREEN_GPIO			GPIOC
+#define LED_GREEN_PIN			6
+#define LED_RED_GPIO			GPIOC
+#define LED_RED_PIN				7
 #define LED_GREEN_ON()			palSetPad(LED_GREEN_GPIO, LED_GREEN_PIN)
 #define LED_GREEN_OFF()			palClearPad(LED_GREEN_GPIO, LED_GREEN_PIN)
 #define LED_RED_ON()			palSetPad(LED_RED_GPIO, LED_RED_PIN)
@@ -253,12 +253,12 @@
 
 // Resolver interface pins
 #define AD2S1205_SAMPLE_GPIO	GPIOB
-#define AD2S1205_SAMPLE_PIN		3
+#define AD2S1205_SAMPLE_PIN		6
 #define AD2S1205_RDVEL_GPIO     GPIOC
 #define AD2S1205_RDVEL_PIN      14
 
 // Ignoring MPU950
-
+	
 // Ignoring NRF SWD
 
 // Measurement macros - double check what these do ----------------------------------------------------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 #ifndef HW_NFR_H_
 #define HW_NFR_H_
 
-#define HW_NAME					"NFR_REAR_INVERTER"
+#define HW_NAME					"NFR26_REAR_INVERTER"
 
 
 // This doesn't seem to be referenced anywhere so probably not needed
@@ -120,7 +120,7 @@
 // #endif
 // // Gain for voltage across shunt
 #ifndef CURRENT_AMP_GAIN
-#define CURRENT_AMP_GAIN		0.00341666666
+#define CURRENT_AMP_GAIN		0.00341666666 // 0.034 calibrated
 #endif
 #ifndef CURRENT_SHUNT_RES
 #define CURRENT_SHUNT_RES		1
@@ -133,7 +133,7 @@
 #define v_adc(adc_val)			(3.3 * adc_val / 4095.0)
 // #define NTC_RES(adc_val)		((4095.0 * 10000.0) / adc_val - 10000.0)
 // #define NTC_RES(adc_val)		(-33000.0 * (3.3 * adc_val / 4095.0)) / ((3.3 * adc_val / 4095.0) - 5)
-#define NTC_RES(adc_val)		(5.0*(3.3-v_adc(adc_val))) / (((3.3 * 5.0) / 1000.0) + 0.00002 - ((5.0/1000.0)*(3.3-v_adc(adc_val)))) //NFR26 Rear
+#define NTC_RES(adc_val)		(5.0*(3.3-v_adc(adc_val))) / (((3.3 * 5.0) / 1000.0) + 0.00002 - ((5.0/661.0)*(3.3-v_adc(adc_val)))) //NFR26 Rear
 // #define NTC_TEMP(adc_ind)		(1.0 / ((logf(NTC_RES(ADC_Value[adc_ind]) / 10000.0) / 3380.0) + (1.0 / 298.15)) - 273.15)
 #define NTC_TEMP(adc_ind)		(1.0 / ((logf(NTC_RES(ADC_Value[adc_ind]) / 5000.0) / 3375.0) + (1.0 / 298.15)) - 273.15)
 
@@ -283,16 +283,16 @@
 #define MCCONF_FOC_F_ZV					30000.0
 #endif
 #ifndef MCCONF_L_MAX_ABS_CURRENT
-#define MCCONF_L_MAX_ABS_CURRENT		400.0	// The maximum absolute current above which a fault is generated
+#define MCCONF_L_MAX_ABS_CURRENT		500.0	// The maximum absolute current above which a fault is generated
 #endif
 #ifndef MCCONF_FOC_SAMPLE_V0_V7
 #define MCCONF_FOC_SAMPLE_V0_V7			true	// Run control loop in both v0 and v7 (requires phase shunts) - check if this should actually be true
 #endif
 
 // Setting limits
-#define HW_LIM_CURRENT			-400.0, 400.0
-#define HW_LIM_CURRENT_IN		-400.0, 400.0
-#define HW_LIM_CURRENT_ABS		0.0, 400.0
+#define HW_LIM_CURRENT			-500.0, 500.0
+#define HW_LIM_CURRENT_IN		-500.0, 500.0
+#define HW_LIM_CURRENT_ABS		0.0, 500.0
 // default lim_vin is 6, 57
 #define HW_LIM_VIN				6.0, 750.0
 #define HW_LIM_ERPM				-200e3, 200e3
