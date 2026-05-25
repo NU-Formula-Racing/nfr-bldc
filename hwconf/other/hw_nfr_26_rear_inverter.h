@@ -133,7 +133,7 @@
 #define v_adc(adc_val)			(3.3 * adc_val / 4095.0)
 // #define NTC_RES(adc_val)		((4095.0 * 10000.0) / adc_val - 10000.0)
 // #define NTC_RES(adc_val)		(-33000.0 * (3.3 * adc_val / 4095.0)) / ((3.3 * adc_val / 4095.0) - 5)
-#define NTC_RES(adc_val)		(5.0*(3.3-v_adc(adc_val))) / (((3.3 * 5.0) / 1000.0) + 0.00002 - ((5.0/661.0)*(3.3-v_adc(adc_val)))) //NFR26 Rear
+#define NTC_RES(adc_val)		(5.0*(3.3-v_adc(adc_val))) / (((3.3 * 5.0) / 1000.0) + 0.00002 - ((5.0/1000.0)*(3.3-v_adc(adc_val)))) //NFR26 Rear
 // #define NTC_TEMP(adc_ind)		(1.0 / ((logf(NTC_RES(ADC_Value[adc_ind]) / 10000.0) / 3380.0) + (1.0 / 298.15)) - 273.15)
 #define NTC_TEMP(adc_ind)		(1.0 / ((logf(NTC_RES(ADC_Value[adc_ind]) / 5000.0) / 3375.0) + (1.0 / 298.15)) - 273.15)
 
