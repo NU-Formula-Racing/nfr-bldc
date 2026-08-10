@@ -100,7 +100,7 @@
 #define ADC_IND_TEMP_MOS		8
 #define ADC_IND_TEMP_MOTOR		9
 #define ADC_IND_VREFINT			12
-#define ADC_IND_SHUTDOWN		10
+#define ADC_IND_INPUT_CURR		10
 
 // Component parameters
 #ifndef V_REG
@@ -122,6 +122,11 @@
 #endif
 #ifndef CURRENT_SHUNT_RES
 #define CURRENT_SHUNT_RES		1
+#endif
+
+// Gain for input (DC) current sensor defined as V/A
+#ifndef INPUT_CURRENT_GAIN
+#define INPUT_CURRENT_GAIN		0.005
 #endif
 
 // Input voltage 
@@ -305,5 +310,16 @@
 
 #define HW_HAS_ISOLATION_RELAYS		// Handle overvoltage fault by shorting phases to avoid failure on relays opening
 
+#define HW_HAS_INPUT_CURRENT_SENSOR
+
+//Input current
+#define GET_INPUT_CURRENT()				hw_nfr_inverter_read_input_current()
+#define GET_INPUT_CURRENT_OFFSET()		hw_nfr_inverter_get_input_current_offset()
+#define MEASURE_INPUT_CURRENT_OFFSET()	hw_nfr_inverter_start_input_current_sensor_offset_measurement()
+
+
+float hw_nfr_inverter_read_input_current(void);
+void hw_nfr_inverter_get_input_current_offset(void);
+void hw_nfr_inverter_start_input_current_sensor_offset_measurement(void);
 
 #endif /*HW_NFR_H_*/

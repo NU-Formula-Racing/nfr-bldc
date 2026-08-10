@@ -12,7 +12,15 @@
 
 // Variables
 static volatile bool i2c_running = false;
-// Not sure what these are for
+
+// Variables for input current sensor
+static volatile float current_sensor_gain = 0.0;
+static volatile float input_current_sensor_offset = 1.65;
+static volatile uint16_t input_current_sensor_offset_samples = 0;
+static volatile uint32_t input_current_sensor_offset_sum = 0;
+static volatile bool current_input_sensor_offset_start_measurement = false;
+
+
 static mutex_t shutdown_mutex;
 // static float bt_diff = 0.0;
 
@@ -317,3 +325,31 @@ void hw_try_restore_i2c(void) {
 // 		chThdSleepMilliseconds(100);
 // 	}
 // }
+
+float hw_nfr_inverter_read_input_current(void) {
+	return ( (V_REG / 4095.0) * (float)ADC_Value[ADC_IND_INPUT_CURR] - input_current_sensor_offset ) / INPUT_CURRENT_GAIN;
+}
+
+void hw_nfr_inverter_get_input_current_offset(void){
+
+	if(current_input_sensor_offset_start_measurement){
+
+		if( input_current_sensor_offset_samples == 100 ){
+			current_input_sensor_offset_start_measurement = false;
+			input_current_sensor_offset = ((float)input_current_sensor_offset_sum) / 100.0;
+			input_current_sensor_offset *= (V_REG / 4095.0);
+		}
+		else{
+			input_current_sensor_offset_sum += 	ADC_Value[ADC_IND_INPUT_CURR];
+			input_current_sensor_offset_samples++;
+		}
+	}else{
+		input_current_sensor_offset_samples++;
+	}
+}
+
+void hw_nfr_inverter_start_input_current_sensor_offset_measurement(void){
+	current_input_sensor_offset_start_measurement = true;
+	input_current_sensor_offset_samples = 0;
+	input_current_sensor_offset_sum = 0;
+}
