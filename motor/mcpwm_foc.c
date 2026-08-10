@@ -2894,7 +2894,7 @@ void mcpwm_foc_adc_int_handler(void *p, uint32_t flags) {
 	bool do_return = false;
 
 #ifndef HW_HAS_DUAL_MOTORS
-#ifdef HW_HAS_PHASE_SHUNTS
+#if defined(HW_HAS_PHASE_SHUNTS) && !defined(USE_NULLV0_SVM)
 	if (conf_now->foc_control_sample_mode != FOC_CONTROL_SAMPLE_MODE_V0_V7 && is_v7) {
 		do_return = true;
 	}

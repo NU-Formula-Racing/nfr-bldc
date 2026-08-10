@@ -292,9 +292,15 @@ void foc_svm(float alpha, float beta, uint32_t PWMFullDutyCycle,
 		uint32_t t2 = (TWO_BY_SQRT3 * beta) * PWMFullDutyCycle;
 
 		// PWM timings
+#ifndef USE_NULLV0_SVM
 		tA = (PWMFullDutyCycle + t1 + t2) / 2;
 		tB = tA - t1;
 		tC = tB - t2;
+#else
+		tA = t1 + t2
+		tB = t2;
+		tC = 0;
+#endif
 
 		break;
 	}
@@ -306,9 +312,15 @@ void foc_svm(float alpha, float beta, uint32_t PWMFullDutyCycle,
 		uint32_t t3 = (-alpha + ONE_BY_SQRT3 * beta) * PWMFullDutyCycle;
 
 		// PWM timings
+#ifndef USE_NULLV0_SVM
 		tB = (PWMFullDutyCycle + t2 + t3) / 2;
 		tA = tB - t3;
 		tC = tA - t2;
+#else
+		tB =  t2 + t3;
+		tA = t2;
+		tC = 0;
+#endif
 
 		break;
 	}
@@ -320,9 +332,15 @@ void foc_svm(float alpha, float beta, uint32_t PWMFullDutyCycle,
 		uint32_t t4 = (-alpha - ONE_BY_SQRT3 * beta) * PWMFullDutyCycle;
 
 		// PWM timings
+#ifndef USE_NULLV0_SVM
 		tB = (PWMFullDutyCycle + t3 + t4) / 2;
 		tC = tB - t3;
 		tA = tC - t4;
+#else
+		tB = t3 + t4;
+		tC = t4;
+		tA = 0;
+#endif
 
 		break;
 	}
@@ -334,9 +352,15 @@ void foc_svm(float alpha, float beta, uint32_t PWMFullDutyCycle,
 		uint32_t t5 = (-TWO_BY_SQRT3 * beta) * PWMFullDutyCycle;
 
 		// PWM timings
+#ifndef USE_NULLV0_SVM
 		tC = (PWMFullDutyCycle + t4 + t5) / 2;
 		tB = tC - t5;
 		tA = tB - t4;
+#else
+		tC = t4 + t5;
+		tB = t4;
+		tA = 0;
+#endif
 
 		break;
 	}
@@ -348,9 +372,15 @@ void foc_svm(float alpha, float beta, uint32_t PWMFullDutyCycle,
 		uint32_t t6 = (alpha - ONE_BY_SQRT3 * beta) * PWMFullDutyCycle;
 
 		// PWM timings
+#ifndef USE_NULLV0_SVM
 		tC = (PWMFullDutyCycle + t5 + t6) / 2;
 		tA = tC - t5;
 		tB = tA - t6;
+#else
+		tC = t5 + t6;
+		tA = t6;
+		tB = 0;
+#endif
 
 		break;
 	}
@@ -362,9 +392,15 @@ void foc_svm(float alpha, float beta, uint32_t PWMFullDutyCycle,
 		uint32_t t1 = (alpha + ONE_BY_SQRT3 * beta) * PWMFullDutyCycle;
 
 		// PWM timings
+#ifndef USE_NULLV0_SVM
 		tA = (PWMFullDutyCycle + t6 + t1) / 2;
 		tC = tA - t1;
 		tB = tC - t6;
+#else
+		tA = t6 + t1;
+		tC = t6;
+		tB = 0;
+#endif
 
 		break;
 	}

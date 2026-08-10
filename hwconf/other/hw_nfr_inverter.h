@@ -304,6 +304,7 @@
 #define HW_LIM_TEMP_FET			-40.0, 140.0
 
 #define HW_HAS_ISOLATION_RELAYS		// Handle overvoltage fault by shorting phases to avoid failure on relays opening
+#define USE_NULLV0_SVM		// Use Null V0 rather than alternating between V0 and V7. Ignore the FOC_CONTROL_SAMPLE_MODE_V0_V7 setting
 
 
 #endif /*HW_NFR_H_*/
