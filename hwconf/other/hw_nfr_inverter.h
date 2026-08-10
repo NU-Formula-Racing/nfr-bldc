@@ -303,7 +303,7 @@
 #define HW_LIM_DUTY_MAX			0.0, 0.99
 #define HW_LIM_TEMP_FET			-40.0, 140.0
 
-#define HW_HAS_ISOLATION_RELAYS
+#define HW_HAS_ISOLATION_RELAYS		// Handle overvoltage fault by shorting phases to avoid failure on relays opening
 
 
 #endif /*HW_NFR_H_*/
