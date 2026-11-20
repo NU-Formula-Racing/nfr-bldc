@@ -120,9 +120,14 @@
 // #define VOLT_AMP_GAIN           0.00509014
 // #endif
 // // Gain for voltage across shunt
+// Overall phase-current gain in V/A (CURRENT_SHUNT_RES = 1): 0.3 mOhm shunt -> AMC3302 -> diff amp.
+// Bench-measured 2026-11-19: 20.4-20.7 ADC counts/A on all three phases (= 0.0164-0.0167 V/A).
 #ifndef CURRENT_AMP_GAIN
-#define CURRENT_AMP_GAIN		0.02733333333
+#define CURRENT_AMP_GAIN		0.0164
 #endif
+// Current flowing into the phase terminal (motor -> inverter) raises the ADC reading,
+// but VESC defines positive phase current as inverter -> motor, so flip the sign.
+#define INVERTED_SHUNT_POLARITY
 #ifndef CURRENT_SHUNT_RES
 #define CURRENT_SHUNT_RES		1
 #endif
