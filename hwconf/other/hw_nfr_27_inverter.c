@@ -38,15 +38,6 @@ void hw_init_gpio(void) {
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOC, ENABLE);
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOD, ENABLE);
 
-	// LEDs
-	palSetPadMode(LED_GREEN_GPIO, LED_GREEN_PIN,
-			PAL_MODE_OUTPUT_PUSHPULL |
-			PAL_STM32_OSPEED_HIGHEST);
-	palSetPadMode(LED_RED_GPIO, LED_RED_PIN,
-			PAL_MODE_OUTPUT_PUSHPULL |
-			PAL_STM32_OSPEED_HIGHEST);
-
-
 	palSetPadMode(GPIOB, 5,
 			PAL_MODE_OUTPUT_PUSHPULL |
 			PAL_STM32_OSPEED_HIGHEST);
@@ -85,6 +76,16 @@ void hw_init_gpio(void) {
 	palSetPadMode(HW_HALL_ENC_GPIO1, HW_HALL_ENC_PIN1, PAL_MODE_INPUT_PULLUP);
 	palSetPadMode(HW_HALL_ENC_GPIO2, HW_HALL_ENC_PIN2, PAL_MODE_INPUT_PULLUP);
 	palSetPadMode(HW_HALL_ENC_GPIO3, HW_HALL_ENC_PIN3, PAL_MODE_INPUT_PULLUP);
+
+	// LEDs. Must come after the hall pins: PC6/PC7 are shared with HALL1/HALL2,
+	// and the hall setup above would otherwise turn the LED pins into inputs.
+	// NFR27 uses the resolver, so the hall inputs are not needed.
+	palSetPadMode(LED_GREEN_GPIO, LED_GREEN_PIN,
+			PAL_MODE_OUTPUT_PUSHPULL |
+			PAL_STM32_OSPEED_HIGHEST);
+	palSetPadMode(LED_RED_GPIO, LED_RED_PIN,
+			PAL_MODE_OUTPUT_PUSHPULL |
+			PAL_STM32_OSPEED_HIGHEST);
 
 	// Phase filters
 #ifdef PHASE_FILTER_GPIO

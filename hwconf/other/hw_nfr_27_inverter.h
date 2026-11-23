@@ -109,11 +109,16 @@
 #ifndef V_REG
 #define V_REG					3.3
 #endif
+// NFR27 voltage chain (DC bus and each phase):
+//   power board divider 3 x 1M + 10k  -> 10k/3.01M = 1/301
+//   AMC1311B (isolation board), gain 1, linear to 2.0 V input  -> ~602 V full scale
+//   control board diff amp U12: 16k/10k = 1.6 (referenced to GND)
+//   V_adc = V_bus * 1.6 / 301  ->  (VIN_R1 + VIN_R2) / VIN_R2 = 301 / 1.6 = 188.125
 #ifndef VIN_R1
-#define VIN_R1					187.5 // 3000000/10000 * 10/16
+#define VIN_R1					187.125
 #endif
 #ifndef VIN_R2
-#define VIN_R2					1 // 10000/10000
+#define VIN_R2					1
 #endif
 // Defined in V/V
 // #ifndef VOLT_AMP_GAIN
@@ -122,6 +127,9 @@
 // // Gain for voltage across shunt
 // Overall phase-current gain in V/A (CURRENT_SHUNT_RES = 1): 0.3 mOhm shunt -> AMC3302 -> diff amp.
 // Bench-measured 2026-11-19: 20.4-20.7 ADC counts/A on all three phases (= 0.0164-0.0167 V/A).
+// NFR27 phase current chain:
+//   R14 phase shunt 0.3 mOhm (BVN-Z-R0003) -> AMC3302 gain 41 -> control board U10 16k/12k = 1.333, centered on 1.65 V
+//   0.0003 * 41 * 1.3333 = 0.0164 V/A  ->  ADC range +/-1.65 V = +/-100 A (see HW_LIM_CURRENT below)
 #ifndef CURRENT_AMP_GAIN
 #define CURRENT_AMP_GAIN		0.0164
 #endif
@@ -139,9 +147,14 @@
 #define v_adc(adc_val)			(3.3 * adc_val / 4095.0)
 // #define NTC_RES(adc_val)		((4095.0 * 10000.0) / adc_val - 10000.0)
 // #define NTC_RES(adc_val)		(-33000.0 * (3.3 * adc_val / 4095.0)) / ((3.3 * adc_val / 4095.0) - 5)
-#define NTC_RES(adc_val)		(5.0*(3.3-v_adc(adc_val))) / (((3.3 * 5.0) / 1000.0) + 0.00002 - ((5.0/1000.0)*(3.3-v_adc(adc_val))))
-// #define NTC_TEMP(adc_ind)		(1.0 / ((logf(NTC_RES(ADC_Value[adc_ind]) / 10000.0) / 3380.0) + (1.0 / 298.15)) - 273.15)
-#define NTC_TEMP(adc_ind)		(1.0 / ((logf(NTC_RES(ADC_Value[adc_ind]) / 5000.0) / 3375.0) + (1.0 / 298.15)) - 273.15)
+// NFR27 power-stage NTC: R2 on power board, NCU15XH103 (10k @ 25C, B = 3380), to VSS
+//   pull-up R9 = 15k to 5V_TS (isolation board) -> AMC1311B (gain 1) -> U12 gain 1.6
+//   V_adc = 1.6 * 5.0 * R / (R + 15k)  ->  R = 15k * x / (1 - x), x = V_adc / 8
+//   Note: AMC1311 input tops out at ~2.0 V, so readings saturate at ~24 C and below (fine for overtemp).
+#define NTC_PULLUP_RES			15000.0
+#define NTC_SENSE_SCALE			8.0
+#define NTC_RES(adc_val)		(NTC_PULLUP_RES * (v_adc(adc_val) / NTC_SENSE_SCALE) / (1.0 - (v_adc(adc_val) / NTC_SENSE_SCALE)))
+#define NTC_TEMP(adc_ind)		(1.0 / ((logf(NTC_RES(ADC_Value[adc_ind]) / 10000.0) / 3380.0) + (1.0 / 298.15)) - 273.15)
 
 // CHANGE THIS ONCE THERMISTOR, ETC IS DECIDED ON -----------------------------------------------------------------------------------------
 #define NTC_RES_MOTOR(adc_val)	(10000.0 / ((4095.0 / (float)adc_val) - 1.0)) // Motor temp sensor on low side
@@ -289,18 +302,20 @@
 #define MCCONF_FOC_F_ZV					30000.0
 #endif
 #ifndef MCCONF_L_MAX_ABS_CURRENT
-#define MCCONF_L_MAX_ABS_CURRENT		400.0	// The maximum absolute current above which a fault is generated
+#define MCCONF_L_MAX_ABS_CURRENT		90.0	// The maximum absolute current above which a fault is generated (must stay below the ~100 A ADC range)
 #endif
 #ifndef MCCONF_FOC_SAMPLE_V0_V7
 #define MCCONF_FOC_SAMPLE_V0_V7			true	// Run control loop in both v0 and v7 (requires phase shunts) - check if this should actually be true
 #endif
 
 // Setting limits
-#define HW_LIM_CURRENT			-400.0, 400.0
-#define HW_LIM_CURRENT_IN		-400.0, 400.0
-#define HW_LIM_CURRENT_ABS		0.0, 400.0
+// Phase current can only be measured up to ~+/-100 A (see CURRENT_AMP_GAIN). Raising these needs a lower
+// control-board amp gain (R36/R40) first, otherwise the overcurrent fault cannot trip.
+#define HW_LIM_CURRENT			-90.0, 90.0
+#define HW_LIM_CURRENT_IN		-90.0, 90.0
+#define HW_LIM_CURRENT_ABS		0.0, 95.0
 // default lim_vin is 6, 57
-#define HW_LIM_VIN				6.0, 750.0
+#define HW_LIM_VIN				6.0, 600.0	// AMC1311 linear range ends at ~602 V
 #define HW_LIM_ERPM				-200e3, 200e3
 #define HW_LIM_DUTY_MIN			0.0, 0.1
 #define HW_LIM_DUTY_MAX			0.0, 0.99
