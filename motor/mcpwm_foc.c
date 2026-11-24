@@ -59,6 +59,12 @@ static void stop_pwm_hw(motor_all_state_t *motor);
 static void start_pwm_hw(motor_all_state_t *motor);
 #ifdef HW_BOOTSTRAP_PRECHARGE
 static bool bootstrap_precharge_step(void);
+static void bootstrap_precharge_leg_blocking(int leg);
+#define BS_PRECHARGE_LEG_BLOCKING(leg)	bootstrap_precharge_leg_blocking(leg)
+#else
+#define BS_PRECHARGE_LEG_BLOCKING(leg)
+#endif
+#ifdef HW_BOOTSTRAP_PRECHARGE
 static volatile systime_t m_bs_last_active = 0;
 static volatile systime_t m_bs_last_step = 0;
 static volatile int m_bs_phase = 0;
@@ -2493,6 +2499,7 @@ int mcpwm_foc_dc_cal(bool cal_undriven) {
 	// Start PWM on phase 1
 	stop_pwm_hw((motor_all_state_t*)&m_motor_1);
 	PHASE_FILTER_ON();
+	BS_PRECHARGE_LEG_BLOCKING(0);
 	TIM_SelectOCxM(TIM1, TIM_Channel_1, TIM_OCMode_PWM1);
 	TIM_CCxCmd(TIM1, TIM_Channel_1, TIM_CCx_Enable);
 	TIM_CCxNCmd(TIM1, TIM_Channel_1, TIM_CCxN_Enable);
@@ -2526,6 +2533,7 @@ int mcpwm_foc_dc_cal(bool cal_undriven) {
 	// Start PWM on phase 2
 	stop_pwm_hw((motor_all_state_t*)&m_motor_1);
 	PHASE_FILTER_ON();
+	BS_PRECHARGE_LEG_BLOCKING(1);
 	TIM_SelectOCxM(TIM1, TIM_Channel_2, TIM_OCMode_PWM1);
 	TIM_CCxCmd(TIM1, TIM_Channel_2, TIM_CCx_Enable);
 	TIM_CCxNCmd(TIM1, TIM_Channel_2, TIM_CCxN_Enable);
@@ -2555,6 +2563,7 @@ int mcpwm_foc_dc_cal(bool cal_undriven) {
 	// Start PWM on phase 3
 	stop_pwm_hw((motor_all_state_t*)&m_motor_1);
 	PHASE_FILTER_ON();
+	BS_PRECHARGE_LEG_BLOCKING(2);
 	TIM_SelectOCxM(TIM1, TIM_Channel_3, TIM_OCMode_PWM1);
 	TIM_CCxCmd(TIM1, TIM_Channel_3, TIM_CCx_Enable);
 	TIM_CCxNCmd(TIM1, TIM_Channel_3, TIM_CCxN_Enable);
@@ -2701,7 +2710,10 @@ int mcpwm_foc_dc_cal(bool cal_undriven) {
 
 	stop_pwm_hw((motor_all_state_t*)&m_motor_1);
 	PHASE_FILTER_ON();
-	
+	BS_PRECHARGE_LEG_BLOCKING(0);
+	BS_PRECHARGE_LEG_BLOCKING(1);
+	BS_PRECHARGE_LEG_BLOCKING(2);
+
 	// Start PWM on all phases at 50% to get a V0 measurement
 	TIM_SelectOCxM(TIM1, TIM_Channel_1, TIM_OCMode_PWM1);
 	TIM_CCxCmd(TIM1, TIM_Channel_1, TIM_CCx_Enable);
@@ -4720,6 +4732,12 @@ static void control_current(motor_all_state_t *motor, float dt) {
 		// braking torque at low speed.
 		if (conf_now->foc_short_ls_on_zero_duty && !do_hfi && duty1 == duty2 && duty2 == duty3) {
 			if (motor->m_pwm_mode != FOC_PWM_FULL_BRAKE) {
+#ifdef HW_BOOTSTRAP_PRECHARGE
+				// All low sides on at once would charge all three bootstrap caps together
+				if (motor == &m_motor_1 && !bootstrap_precharge_step()) {
+					// still precharging
+				} else
+#endif
 				full_brake_hw(motor);
 			}
 		} else {
@@ -4986,8 +5004,38 @@ static void stop_pwm_hw(motor_all_state_t *motor) {
 
 volatile bool mcpwm_foc_bs_precharge_enabled = true; // runtime switch, see hwconf terminal
 
+static const uint16_t bs_ch[3] = {TIM_Channel_1, TIM_Channel_2, TIM_Channel_3};
+
+// Low side of one leg fully on, high side held off (OSSR set: a disabled OCx sits at its
+// inactive level). Only one output of the leg is enabled, so no shoot-through is possible.
+static void bs_hw_low_on(int leg) {
+	TIM_SelectOCxM(TIM1, bs_ch[leg], TIM_ForcedAction_Active);
+	TIM_CCxCmd(TIM1, bs_ch[leg], TIM_CCx_Disable);
+	TIM_CCxNCmd(TIM1, bs_ch[leg], TIM_CCxN_Enable);
+	TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+}
+
+// Same state as stop_pwm_hw() for one leg
+static void bs_hw_leg_off(int leg) {
+	TIM_SelectOCxM(TIM1, bs_ch[leg], TIM_ForcedAction_InActive);
+	TIM_CCxCmd(TIM1, bs_ch[leg], TIM_CCx_Enable);
+	TIM_CCxNCmd(TIM1, bs_ch[leg], TIM_CCxN_Disable);
+	TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+}
+
+// Thread-context precharge of one leg, for code that drives TIM1 directly (dc_cal).
+// Call with that leg off; returns with it off.
+static void bootstrap_precharge_leg_blocking(int leg) {
+	if (!mcpwm_foc_bs_precharge_enabled || leg < 0 || leg > 2) {
+		return;
+	}
+	bs_hw_low_on(leg);
+	chThdSleepMicroseconds(BS_PRECHARGE_ON_US);
+	bs_hw_leg_off(leg);
+	chThdSleepMicroseconds(BS_PRECHARGE_GAP_US);
+}
+
 static bool bootstrap_precharge_step(void) {
-	static const uint16_t bs_ch[3] = {TIM_Channel_1, TIM_Channel_2, TIM_Channel_3};
 	static uint32_t t_stage = 0;
 	const systime_t now = chVTGetSystemTimeX();
 
@@ -5012,24 +5060,16 @@ static bool bootstrap_precharge_step(void) {
 	}
 	m_bs_last_step = now;
 
-	const uint16_t c = bs_ch[m_bs_phase];
-
 	switch (m_bs_count) {
-	case 0: // low side of this leg on, high side held off (OSSR: disabled OCx = off)
-		TIM_SelectOCxM(TIM1, c, TIM_ForcedAction_Active);
-		TIM_CCxCmd(TIM1, c, TIM_CCx_Disable);
-		TIM_CCxNCmd(TIM1, c, TIM_CCxN_Enable);
-		TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+	case 0: // low side of this leg on, high side held off
+		bs_hw_low_on(m_bs_phase);
 		t_stage = DWT->CYCCNT;
 		m_bs_count = 1;
 		break;
 
 	case 1: // charging
 		if (elapsed_us >= BS_PRECHARGE_ON_US) {
-			TIM_SelectOCxM(TIM1, c, TIM_ForcedAction_InActive);
-			TIM_CCxCmd(TIM1, c, TIM_CCx_Enable);
-			TIM_CCxNCmd(TIM1, c, TIM_CCxN_Disable);
-			TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+			bs_hw_leg_off(m_bs_phase);
 			t_stage = DWT->CYCCNT;
 			m_bs_count = 2;
 		}
