@@ -15,7 +15,15 @@
 #define HW_HAS_3_SHUNTS
 #define HW_HAS_PHASE_SHUNTS
 // got rid of property "permanent NRF"
-#define HW_HAS_PHASE_FILTERS
+// No HW_HAS_PHASE_FILTERS: VOLT_FILT (PC13) switches the filter caps on ALL five
+// voltage-amp channels (U, V, W, DC bus, FET temp), not only the phases. Turning it on
+// at PWM start makes the bus/temp readings jump while the caps settle (false OV/UV/temp
+// faults), so the filter is kept off permanently.
+
+// 18V_TS (gate drive) is boosted from 5V_TS (U3, UCC33420). Charging all three empty
+// bootstrap caps in the first PWM cycle overloads U3 and 5V_TS collapses (AMC1311s and
+// the DRV fault line drop out). Precharge them gently first, see mcpwm_foc.c.
+#define HW_BOOTSTRAP_PRECHARGE
 
 // Macros
 #define ENABLE_GATE()			palSetPad(GPIOB, 5)
@@ -26,7 +34,7 @@
 
 #define PHASE_FILTER_GPIO		GPIOC
 #define PHASE_FILTER_PIN		13
-#define PHASE_FILTER_ON()		palSetPad(PHASE_FILTER_GPIO, PHASE_FILTER_PIN)
+#define PHASE_FILTER_ON()		palClearPad(PHASE_FILTER_GPIO, PHASE_FILTER_PIN) // kept off, see above
 #define PHASE_FILTER_OFF()		palClearPad(PHASE_FILTER_GPIO, PHASE_FILTER_PIN)
 
 #define CURRENT_FILTER_GPIO		GPIOD

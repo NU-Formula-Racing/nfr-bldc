@@ -27,6 +27,10 @@ static const I2CConfig i2cfg = {
 
 // static void terminal_shutdown_now(int argc, const char **argv);
 // static void terminal_button_test(int argc, const char **argv);
+static void terminal_pwm1(int argc, const char **argv);
+static void terminal_bs(int argc, const char **argv);
+static void terminal_precharge(int argc, const char **argv);
+extern volatile bool mcpwm_foc_bs_precharge_enabled;
 
 void hw_init_gpio(void) {
 
@@ -136,6 +140,239 @@ void hw_init_gpio(void) {
 	// 	0,
 	// 	terminal_button_test);
 
+	terminal_register_command_callback(
+		"nfr_pwm1",
+		"Bench test: 50% complementary PWM on one phase only, others off. Motor must be off.",
+		"[phase 1-3] [ms 1-5000, default 1000]",
+		terminal_pwm1);
+
+	terminal_register_command_callback(
+		"nfr_bs",
+		"Bench test: mode 1 = low side on 5 ms; mode 2 = that, then one 5 us high-side pulse. Times DRV/vin.",
+		"[phase 1-3] [mode 1-2]",
+		terminal_bs);
+
+	terminal_register_command_callback(
+		"nfr_precharge",
+		"Show or set the bootstrap precharge before PWM start (not saved, on after reboot).",
+		"[0|1]",
+		terminal_precharge);
+}
+
+static void terminal_precharge(int argc, const char **argv) {
+	if (argc >= 2) {
+		int en = 1;
+		sscanf(argv[1], "%d", &en);
+		mcpwm_foc_bs_precharge_enabled = en != 0;
+	}
+	commands_printf("Bootstrap precharge: %s\n", mcpwm_foc_bs_precharge_enabled ? "ON" : "OFF");
+}
+
+// Single-output drive of one leg. OSSR is set, so a disabled output sits at its
+// inactive level (FET off). Only one output of the leg is ever enabled at a time.
+static void bs_leg_off(uint16_t c) {
+	TIM_SelectOCxM(TIM1, c, TIM_ForcedAction_InActive);
+	TIM_CCxCmd(TIM1, c, TIM_CCx_Enable);
+	TIM_CCxNCmd(TIM1, c, TIM_CCxN_Disable);
+	TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+}
+
+static void bs_low_on(uint16_t c) {
+	TIM_SelectOCxM(TIM1, c, TIM_ForcedAction_Active);
+	TIM_CCxCmd(TIM1, c, TIM_CCx_Disable);
+	TIM_CCxNCmd(TIM1, c, TIM_CCxN_Enable);
+	TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+}
+
+static void bs_high_on(uint16_t c) {
+	TIM_SelectOCxM(TIM1, c, TIM_ForcedAction_Active);
+	TIM_CCxCmd(TIM1, c, TIM_CCx_Enable);
+	TIM_CCxNCmd(TIM1, c, TIM_CCxN_Disable);
+	TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+}
+
+static inline uint32_t bs_us(uint32_t t0) {
+	return (DWT->CYCCNT - t0) / (SYSTEM_CORE_CLOCK / 1000000);
+}
+
+static void bs_wait_us(uint32_t t0, uint32_t us) {
+	while (bs_us(t0) < us) {}
+}
+
+/*
+ * Bootstrap / high-side event test on one leg, with microsecond timing of when the
+ * DRV line goes low and when the bus reading (AMC1311 path) collapses.
+ * mode 1: low side on for 5 ms (charges that leg's bootstrap cap), then off.
+ * mode 2: as mode 1, then 10 us with both off, then a single 5 us high-side pulse.
+ * Monitors until 30 ms after the start.
+ */
+static void terminal_bs(int argc, const char **argv) {
+	int ph = 0;
+	int mode = 0;
+
+	if (argc >= 2) { sscanf(argv[1], "%d", &ph); }
+	if (argc >= 3) { sscanf(argv[2], "%d", &mode); }
+
+	if (ph < 1 || ph > 3 || mode < 1 || mode > 2) {
+		commands_printf("Usage: nfr_bs [phase 1-3] [mode 1-2]\n");
+		return;
+	}
+
+	if (mc_interface_get_state() != MC_STATE_OFF || mc_interface_get_fault() != FAULT_CODE_NONE) {
+		commands_printf("Motor must be off with no active fault.\n");
+		return;
+	}
+
+	static const uint16_t chs[3] = {TIM_Channel_1, TIM_Channel_2, TIM_Channel_3};
+	const uint16_t c = chs[ph - 1];
+
+	CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+	DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+
+	const float v_start = GET_INPUT_VOLTAGE();
+	int t_drv = -1, t_vlow = -1, t_ls_off = -1, t_hs_on = -1, t_hs_off = -1;
+	bool hs_done = (mode != 2);
+	bool ls_on = true;
+
+	const uint32_t t0 = DWT->CYCCNT;
+	bs_low_on(c);
+
+	for (;;) {
+		uint32_t now = bs_us(t0);
+
+		if (ls_on && now >= 5000) {
+			bs_leg_off(c);
+			ls_on = false;
+			t_ls_off = bs_us(t0);
+		}
+
+		if (!ls_on && !hs_done && (t_drv >= 0 || t_vlow >= 0 ||
+				mc_interface_get_fault() != FAULT_CODE_NONE)) {
+			hs_done = true; // something already failed: don't fire the high side
+		}
+
+		if (!ls_on && !hs_done && now >= (uint32_t)t_ls_off + 10) {
+			chSysLock();
+			t_hs_on = bs_us(t0);
+			bs_high_on(c);
+			bs_wait_us(t0, t_hs_on + 5);
+			bs_leg_off(c);
+			t_hs_off = bs_us(t0);
+			chSysUnlock();
+			hs_done = true;
+		}
+
+		if (t_drv < 0 && IS_DRV_FAULT()) { t_drv = bs_us(t0); }
+		if (t_vlow < 0 && GET_INPUT_VOLTAGE() < 0.7 * v_start) { t_vlow = bs_us(t0); }
+
+		if (now >= 30000) {
+			break;
+		}
+	}
+
+	bs_leg_off(c);
+
+	commands_printf("nfr_bs phase %d mode %d (vin start %.2f, now %.2f)\n", ph, mode,
+			(double)v_start, (double)GET_INPUT_VOLTAGE());
+	commands_printf("  t [us]: low on 0, low off %d, high on %d, high off %d\n", t_ls_off, t_hs_on, t_hs_off);
+	commands_printf("  DRV low first at %d us, vin < 70%% first at %d us (-1 = never)\n", t_drv, t_vlow);
+	commands_printf("  fault now: %s\n", mc_interface_fault_to_string(mc_interface_get_fault()));
+}
+
+/*
+ * Single-phase PWM bench test. While the motor is off the FOC ISR holds all CCRs at
+ * ARR/2, so enabling one channel gives 50% complementary PWM (with dead time) on that
+ * leg. Normal fault handling stays active: a DRV or voltage fault calls stop_pwm_hw(),
+ * which turns the leg off; this is detected and reported.
+ */
+static void terminal_pwm1(int argc, const char **argv) {
+	int ph = 0;
+	int ms = 1000;
+
+	if (argc >= 2) {
+		sscanf(argv[1], "%d", &ph);
+	}
+	if (argc >= 3) {
+		sscanf(argv[2], "%d", &ms);
+	}
+
+	if (ph < 1 || ph > 3 || ms < 1 || ms > 5000) {
+		commands_printf("Usage: nfr_pwm1 [phase 1-3] [ms 1-5000]\n");
+		return;
+	}
+
+	if (mc_interface_get_state() != MC_STATE_OFF || mc_interface_get_fault() != FAULT_CODE_NONE) {
+		commands_printf("Motor must be off with no active fault.\n");
+		return;
+	}
+
+	static const uint16_t chs[3] = {TIM_Channel_1, TIM_Channel_2, TIM_Channel_3};
+	static const uint32_t cne[3] = {TIM_CCER_CC1NE, TIM_CCER_CC2NE, TIM_CCER_CC3NE};
+	const uint16_t c = chs[ph - 1];
+
+	const float v_start = GET_INPUT_VOLTAGE();
+	float v_min = v_start, v_max = v_start;
+	const float ph_scale = (V_REG / 4095.0) * ((VIN_R1 + VIN_R2) / VIN_R2);
+	const int ph_ind[3] = {ADC_IND_SENS1, ADC_IND_SENS2, ADC_IND_SENS3};
+	float ph_before[3], ph_sum[3] = {0.0, 0.0, 0.0};
+	int ph_n = 0;
+	for (int k = 0;k < 3;k++) {
+		ph_before[k] = (float)ADC_Value[ph_ind[k]] * ph_scale;
+	}
+	int drv_samples = 0;
+	int stopped_at = -1;
+	int low_at = -1;
+
+	TIM_SelectOCxM(TIM1, c, TIM_OCMode_PWM1);
+	TIM_CCxCmd(TIM1, c, TIM_CCx_Enable);
+	TIM_CCxNCmd(TIM1, c, TIM_CCxN_Enable);
+	TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+
+	for (int i = 0;i < ms;i++) {
+		chThdSleepMilliseconds(1);
+
+		float v = GET_INPUT_VOLTAGE();
+		if (v < v_min) { v_min = v; }
+		if (v > v_max) { v_max = v; }
+		if (IS_DRV_FAULT()) { drv_samples++; }
+		for (int k = 0;k < 3;k++) {
+			ph_sum[k] += (float)ADC_Value[ph_ind[k]] * ph_scale;
+		}
+		ph_n++;
+
+		if (!(TIM1->CCER & cne[ph - 1])) {
+			stopped_at = i; // the firmware turned the leg off (fault)
+			break;
+		}
+
+		if (v < 0.7 * v_start) {
+			low_at = i; // bus/AMC1311 reading collapsed
+			break;
+		}
+	}
+
+	TIM_SelectOCxM(TIM1, c, TIM_ForcedAction_InActive);
+	TIM_CCxCmd(TIM1, c, TIM_CCx_Enable);
+	TIM_CCxNCmd(TIM1, c, TIM_CCxN_Disable);
+	TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+
+	commands_printf("nfr_pwm1 phase %d, %d ms requested\n", ph, ms);
+	commands_printf("  vin start %.2f  min %.2f  max %.2f\n", (double)v_start, (double)v_min, (double)v_max);
+	commands_printf("  DRV line low in %d samples\n", drv_samples);
+	commands_printf("  phases before  U %.1f  V %.1f  W %.1f\n",
+			(double)ph_before[0], (double)ph_before[1], (double)ph_before[2]);
+	if (ph_n > 0) {
+		commands_printf("  phases during  U %.1f  V %.1f  W %.1f  (avg of %d; switching leg ~vin/2)\n",
+				(double)(ph_sum[0] / ph_n), (double)(ph_sum[1] / ph_n), (double)(ph_sum[2] / ph_n), ph_n);
+	}
+	if (stopped_at >= 0) {
+		commands_printf("  STOPPED by firmware at %d ms, fault: %s\n", stopped_at,
+				mc_interface_fault_to_string(mc_interface_get_fault()));
+	} else if (low_at >= 0) {
+		commands_printf("  ABORTED at %d ms: vin reading below 70%% of start\n", low_at);
+	} else {
+		commands_printf("  completed\n");
+	}
 }
 
 void hw_setup_adc_channels(void) {

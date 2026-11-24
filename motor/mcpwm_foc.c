@@ -57,6 +57,13 @@ static void control_current(motor_all_state_t *motor, float dt);
 static void update_valpha_vbeta(motor_all_state_t *motor, float mod_alpha, float mod_beta);
 static void stop_pwm_hw(motor_all_state_t *motor);
 static void start_pwm_hw(motor_all_state_t *motor);
+#ifdef HW_BOOTSTRAP_PRECHARGE
+static bool bootstrap_precharge_step(void);
+static volatile systime_t m_bs_last_active = 0;
+static volatile systime_t m_bs_last_step = 0;
+static volatile int m_bs_phase = 0;
+static volatile int m_bs_count = 0;
+#endif
 static void full_brake_hw(motor_all_state_t *motor);
 static void terminal_tmp(int argc, const char **argv);
 static void terminal_plot_hfi(int argc, const char **argv);
@@ -4717,9 +4724,22 @@ static void control_current(motor_all_state_t *motor, float dt) {
 			}
 		} else {
 			if (motor->m_pwm_mode != FOC_PWM_ENABLED) {
+#ifdef HW_BOOTSTRAP_PRECHARGE
+				if (motor == &m_motor_1 && !bootstrap_precharge_step()) {
+					// Still precharging: keep the current controller from winding up
+					motor->m_motor_state.vd_int = 0.0;
+					motor->m_motor_state.vq_int = 0.0;
+				} else
+#endif
 				start_pwm_hw(motor);
 			}
 		}
+
+#ifdef HW_BOOTSTRAP_PRECHARGE
+		if (motor == &m_motor_1 && motor->m_pwm_mode != FOC_PWM_DISABLED) {
+			m_bs_last_active = chVTGetSystemTimeX();
+		}
+#endif
 	}
 }
 
@@ -4942,6 +4962,94 @@ static void stop_pwm_hw(motor_all_state_t *motor) {
 
 	motor->m_pwm_mode = FOC_PWM_DISABLED;
 }
+
+#ifdef HW_BOOTSTRAP_PRECHARGE
+/*
+ * Charge the high-side bootstrap capacitors before starting PWM. Starting PWM with empty
+ * bootstrap caps makes all three charge in the first cycle; on NFR27 that inrush pulls
+ * 18V_TS down, the boost then draws its current limit from 5V_TS and U3 (UCC33420)
+ * shuts down. One leg charging alone is fine, so charge them one at a time: low side
+ * of one leg fully on for BS_PRECHARGE_ON_US (high side held off), then all off for
+ * BS_PRECHARGE_GAP_US so 18V_TS/5V_TS recover, then the next leg. ~7.5 ms in total.
+ * Runs in the FOC ISR; returns true when done. Skipped if PWM was active within the
+ * last BS_PRECHARGE_HOLD_MS (the 330 nF caps drain at ~0.5 V/ms through IQBS).
+ */
+#ifndef BS_PRECHARGE_ON_US
+#define BS_PRECHARGE_ON_US		500		// low side on per leg (330 nF fills in a few tens of us)
+#endif
+#ifndef BS_PRECHARGE_GAP_US
+#define BS_PRECHARGE_GAP_US		2000	// recovery time after each leg
+#endif
+#ifndef BS_PRECHARGE_HOLD_MS
+#define BS_PRECHARGE_HOLD_MS	5
+#endif
+
+volatile bool mcpwm_foc_bs_precharge_enabled = true; // runtime switch, see hwconf terminal
+
+static bool bootstrap_precharge_step(void) {
+	static const uint16_t bs_ch[3] = {TIM_Channel_1, TIM_Channel_2, TIM_Channel_3};
+	static uint32_t t_stage = 0;
+	const systime_t now = chVTGetSystemTimeX();
+
+	if (!mcpwm_foc_bs_precharge_enabled) {
+		return true;
+	}
+
+	if (chVTTimeElapsedSinceX(m_bs_last_active) < MS2ST(BS_PRECHARGE_HOLD_MS)) {
+		return true;
+	}
+
+	CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+	DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+	const uint32_t cyc_per_us = SYSTEM_CORE_CLOCK / 1000000;
+	const uint32_t elapsed_us = (DWT->CYCCNT - t_stage) / cyc_per_us;
+
+	// Restart the sequence if it was interrupted (not called for a while). If PWM was
+	// stopped meanwhile, stop_pwm_hw() has already turned every leg off.
+	if (chVTTimeElapsedSinceX(m_bs_last_step) > MS2ST(5)) {
+		m_bs_phase = 0;
+		m_bs_count = 0;
+	}
+	m_bs_last_step = now;
+
+	const uint16_t c = bs_ch[m_bs_phase];
+
+	switch (m_bs_count) {
+	case 0: // low side of this leg on, high side held off (OSSR: disabled OCx = off)
+		TIM_SelectOCxM(TIM1, c, TIM_ForcedAction_Active);
+		TIM_CCxCmd(TIM1, c, TIM_CCx_Disable);
+		TIM_CCxNCmd(TIM1, c, TIM_CCxN_Enable);
+		TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+		t_stage = DWT->CYCCNT;
+		m_bs_count = 1;
+		break;
+
+	case 1: // charging
+		if (elapsed_us >= BS_PRECHARGE_ON_US) {
+			TIM_SelectOCxM(TIM1, c, TIM_ForcedAction_InActive);
+			TIM_CCxCmd(TIM1, c, TIM_CCx_Enable);
+			TIM_CCxNCmd(TIM1, c, TIM_CCxN_Disable);
+			TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+			t_stage = DWT->CYCCNT;
+			m_bs_count = 2;
+		}
+		break;
+
+	default: // recovery gap
+		if (elapsed_us >= BS_PRECHARGE_GAP_US) {
+			m_bs_count = 0;
+			m_bs_phase++;
+			if (m_bs_phase >= 3) {
+				m_bs_phase = 0;
+				return true;
+			}
+		}
+		break;
+	}
+
+	return false;
+}
+#endif
 
 static void start_pwm_hw(motor_all_state_t *motor) {
 	if (motor == &m_motor_1) {
