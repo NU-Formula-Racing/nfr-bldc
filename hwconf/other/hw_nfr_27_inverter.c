@@ -140,27 +140,31 @@ void hw_init_gpio(void) {
 
 void hw_setup_adc_channels(void) {
 	uint8_t t_samp = ADC_SampleTime_15Cycles;
+	// Voltage/temp channels are driven through 3.3k (R43) with no hold cap while the
+	// phase filter is off, so 15 cycles is too short and they read high (charge sharing
+	// with the previous channel). Current channels keep 15 cycles.
+	uint8_t t_samp_v = ADC_SampleTime_56Cycles;
 
 	// ADC1 regular channels
 	ADC_RegularChannelConfig(ADC1, ADC_Channel_10, 1, t_samp);
-	ADC_RegularChannelConfig(ADC1, ADC_Channel_0, 2, t_samp);
-	ADC_RegularChannelConfig(ADC1, ADC_Channel_5, 3, t_samp);
-	ADC_RegularChannelConfig(ADC1, ADC_Channel_14, 4, t_samp);
-	ADC_RegularChannelConfig(ADC1, ADC_Channel_Vrefint, 5, t_samp);
+	ADC_RegularChannelConfig(ADC1, ADC_Channel_0, 2, t_samp_v);
+	ADC_RegularChannelConfig(ADC1, ADC_Channel_5, 3, t_samp_v);
+	ADC_RegularChannelConfig(ADC1, ADC_Channel_14, 4, t_samp_v);
+	ADC_RegularChannelConfig(ADC1, ADC_Channel_Vrefint, 5, t_samp_v);
 
 	// ADC2 regular channels
 	ADC_RegularChannelConfig(ADC2, ADC_Channel_11, 1, t_samp);
-	ADC_RegularChannelConfig(ADC2, ADC_Channel_1, 2, t_samp);
-	ADC_RegularChannelConfig(ADC2, ADC_Channel_6, 3, t_samp);
-	ADC_RegularChannelConfig(ADC2, ADC_Channel_15, 4, t_samp);
-	ADC_RegularChannelConfig(ADC2, ADC_Channel_0, 5, t_samp);
+	ADC_RegularChannelConfig(ADC2, ADC_Channel_1, 2, t_samp_v);
+	ADC_RegularChannelConfig(ADC2, ADC_Channel_6, 3, t_samp_v);
+	ADC_RegularChannelConfig(ADC2, ADC_Channel_15, 4, t_samp_v);
+	ADC_RegularChannelConfig(ADC2, ADC_Channel_0, 5, t_samp_v);
 
 	// ADC3 regular channels
 	ADC_RegularChannelConfig(ADC3, ADC_Channel_12, 1, t_samp);
-	ADC_RegularChannelConfig(ADC3, ADC_Channel_2, 2, t_samp);
-	ADC_RegularChannelConfig(ADC3, ADC_Channel_3, 3, t_samp);
-	ADC_RegularChannelConfig(ADC3, ADC_Channel_13, 4, t_samp);
-	ADC_RegularChannelConfig(ADC3, ADC_Channel_1, 5, t_samp);
+	ADC_RegularChannelConfig(ADC3, ADC_Channel_2, 2, t_samp_v);
+	ADC_RegularChannelConfig(ADC3, ADC_Channel_3, 3, t_samp_v);
+	ADC_RegularChannelConfig(ADC3, ADC_Channel_13, 4, t_samp_v);
+	ADC_RegularChannelConfig(ADC3, ADC_Channel_1, 5, t_samp_v);
 
 	// Current oversampling
 //	for (int i = 6;i <= 15;i++) {
