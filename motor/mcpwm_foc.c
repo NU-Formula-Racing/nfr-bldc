@@ -4986,17 +4986,29 @@ static void stop_pwm_hw(motor_all_state_t *motor) {
  * Charge the high-side bootstrap capacitors before starting PWM. Starting PWM with empty
  * bootstrap caps makes all three charge in the first cycle; on NFR27 that inrush pulls
  * 18V_TS down, the boost then draws its current limit from 5V_TS and U3 (UCC33420)
- * shuts down. One leg charging alone is fine, so charge them one at a time: low side
- * of one leg fully on for BS_PRECHARGE_ON_US (high side held off), then all off for
- * BS_PRECHARGE_GAP_US so 18V_TS/5V_TS recover, then the next leg. ~7.5 ms in total.
+ * shuts down. Charging one leg at a time is not enough once a motor is connected: the
+ * windings pull the other phase nodes low too, so all three caps charge together. So use
+ * short low-side pulses (high side held off), rotating U/V/W, one pulse every
+ * BS_PRECHARGE_EVERY ISR cycles, with the on-time ramping from MIN to MAX. A pulse of a
+ * few us moves little charge, and the winding inductance limits how fast the other legs
+ * can charge through the motor. Defaults: 3 x 40 pulses x 6 ISR cycles (~50-70 ms).
  * Runs in the FOC ISR; returns true when done. Skipped if PWM was active within the
  * last BS_PRECHARGE_HOLD_MS (the 330 nF caps drain at ~0.5 V/ms through IQBS).
  */
-#ifndef BS_PRECHARGE_ON_US
-#define BS_PRECHARGE_ON_US		500		// low side on per leg (330 nF fills in a few tens of us)
+#ifndef BS_PRECHARGE_PULSES
+#define BS_PRECHARGE_PULSES		40		// pulses per leg
 #endif
-#ifndef BS_PRECHARGE_GAP_US
-#define BS_PRECHARGE_GAP_US		2000	// recovery time after each leg
+#ifndef BS_PRECHARGE_EVERY
+#define BS_PRECHARGE_EVERY		6		// one pulse every N ISR cycles
+#endif
+#ifndef BS_PRECHARGE_ON_MIN_NS
+#define BS_PRECHARGE_ON_MIN_NS	300.0	// first pulse
+#endif
+#ifndef BS_PRECHARGE_ON_MAX_NS
+#define BS_PRECHARGE_ON_MAX_NS	5000.0	// last pulse
+#endif
+#ifndef BS_PRECHARGE_BLOCKING_GAP_US
+#define BS_PRECHARGE_BLOCKING_GAP_US	500	// pulse spacing in the thread-context version
 #endif
 #ifndef BS_PRECHARGE_HOLD_MS
 #define BS_PRECHARGE_HOLD_MS	5
@@ -5023,20 +5035,42 @@ static void bs_hw_leg_off(int leg) {
 	TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
 }
 
-// Thread-context precharge of one leg, for code that drives TIM1 directly (dc_cal).
-// Call with that leg off; returns with it off.
+// One low-side pulse of t_on_ns on one leg, timed with the cycle counter. Interrupts are
+// off for the few us of the pulse so it cannot be stretched by preemption.
+static void bs_pulse(int leg, float t_on_ns) {
+	CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+	DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+	const uint32_t cyc = (uint32_t)(t_on_ns * 1e-9 * (float)SYSTEM_CORE_CLOCK);
+
+	const uint32_t primask = __get_PRIMASK();
+	__disable_irq();
+	const uint32_t t0 = DWT->CYCCNT;
+	bs_hw_low_on(leg);
+	while ((DWT->CYCCNT - t0) < cyc) {}
+	bs_hw_leg_off(leg);
+	__set_PRIMASK(primask);
+}
+
+static float bs_pulse_ns(int pulse) {
+	const float x = (float)pulse / (float)BS_PRECHARGE_PULSES;
+	return BS_PRECHARGE_ON_MIN_NS + (BS_PRECHARGE_ON_MAX_NS - BS_PRECHARGE_ON_MIN_NS) * x * x;
+}
+
+// Thread-context precharge of all three legs, for code that drives TIM1 directly (dc_cal).
+// With a motor connected, starting any one leg charges all three caps, so always do all.
+// The argument is unused (kept so the call sites stay per leg). Call with all legs off.
 static void bootstrap_precharge_leg_blocking(int leg) {
-	if (!mcpwm_foc_bs_precharge_enabled || leg < 0 || leg > 2) {
+	(void)leg;
+	if (!mcpwm_foc_bs_precharge_enabled) {
 		return;
 	}
-	bs_hw_low_on(leg);
-	chThdSleepMicroseconds(BS_PRECHARGE_ON_US);
-	bs_hw_leg_off(leg);
-	chThdSleepMicroseconds(BS_PRECHARGE_GAP_US);
+	for (int g = 0;g < 3 * BS_PRECHARGE_PULSES;g++) {
+		bs_pulse(g % 3, bs_pulse_ns(g / 3));
+		chThdSleepMicroseconds(BS_PRECHARGE_BLOCKING_GAP_US);
+	}
 }
 
 static bool bootstrap_precharge_step(void) {
-	static uint32_t t_stage = 0;
 	const systime_t now = chVTGetSystemTimeX();
 
 	if (!mcpwm_foc_bs_precharge_enabled) {
@@ -5047,46 +5081,25 @@ static bool bootstrap_precharge_step(void) {
 		return true;
 	}
 
-	CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
-	DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
-	const uint32_t cyc_per_us = SYSTEM_CORE_CLOCK / 1000000;
-	const uint32_t elapsed_us = (DWT->CYCCNT - t_stage) / cyc_per_us;
-
 	// Restart the sequence if it was interrupted (not called for a while). If PWM was
 	// stopped meanwhile, stop_pwm_hw() has already turned every leg off.
 	if (chVTTimeElapsedSinceX(m_bs_last_step) > MS2ST(5)) {
-		m_bs_phase = 0;
 		m_bs_count = 0;
 	}
 	m_bs_last_step = now;
 
-	switch (m_bs_count) {
-	case 0: // low side of this leg on, high side held off
-		bs_hw_low_on(m_bs_phase);
-		t_stage = DWT->CYCCNT;
-		m_bs_count = 1;
-		break;
-
-	case 1: // charging
-		if (elapsed_us >= BS_PRECHARGE_ON_US) {
-			bs_hw_leg_off(m_bs_phase);
-			t_stage = DWT->CYCCNT;
-			m_bs_count = 2;
-		}
-		break;
-
-	default: // recovery gap
-		if (elapsed_us >= BS_PRECHARGE_GAP_US) {
-			m_bs_count = 0;
-			m_bs_phase++;
-			if (m_bs_phase >= 3) {
-				m_bs_phase = 0;
-				return true;
-			}
-		}
-		break;
+	const int group = m_bs_count / BS_PRECHARGE_EVERY;
+	if (group >= 3 * BS_PRECHARGE_PULSES) {
+		m_bs_count = 0;
+		return true;
 	}
 
+	if ((m_bs_count % BS_PRECHARGE_EVERY) == 0) {
+		m_bs_phase = group % 3;
+		bs_pulse(m_bs_phase, bs_pulse_ns(group / 3));
+	}
+
+	m_bs_count++;
 	return false;
 }
 #endif
